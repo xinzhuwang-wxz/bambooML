@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.env
+.venv/
+venv/
+env/
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Build & packaging
+build/
+dist/
+*.egg-info/
+
+# Training & artifacts
+runs/
+models/
+checkpoints/
+*.pt
+*.onnx
+*.parquet
+
+# Auto-generated configs
+*.auto.yaml
+
+# Logs
+*.log
+
+# Trae
+.trae/
+

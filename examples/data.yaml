@@ -1,0 +1,19 @@
+selection: null
+test_time_selection: null
+preprocess:
+  method: auto
+  data_fraction: 0.1
+  params: null
+new_variables: {}
+inputs:
+  features:
+    length: null
+    vars:
+      - [x, auto, 1, -5, 5, 0]
+      - [y, auto, 1, -5, 5, 0]
+labels:
+  type: simple
+  value: [label_a, label_b]
+observers: []
+monitor_variables: []
+weights: null
