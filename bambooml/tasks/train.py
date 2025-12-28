@@ -1,14 +1,27 @@
+"""Training utilities."""
 import os
 import ast
 import copy
+import datetime
+import socket
+from typing import Optional
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from ..monitor.tensorboard import get_writer, log_scalar
+
+from ..core.experiment import end_run, log_artifact, log_metrics, log_params, start_run
 from ..core.logging import get_logger
 from ..data.dataset import SimpleIterDataset
+from ..monitor.tensorboard import get_writer, log_scalar
+from ..utils import set_seeds
+
 
 def import_module(module_path, name='_module'):
+    '''
+    import_module 是一个函数，用于导入模块。
+    eg: a = import_module('module.py', name='_module')
+    '''
     import importlib.util
     spec = importlib.util.spec_from_file_location(name, module_path)
     mod = importlib.util.module_from_spec(spec)
@@ -146,15 +159,60 @@ def evaluate_loop(model, loss_func, loader, device, steps_per_epoch=None, task_t
     return float(np.mean(losses))
 
 def run(args):
+    """Run training loop.
+
+    Args:
+        args: Training arguments.
+    """
+    # Set seeds for reproducibility
+    set_seeds(seed=42)
+
     logger = get_logger('bambooml', stdout=True, filename=args.log if args.log else None)
+
+    # Start MLflow run if experiment name is provided
+    experiment_name = getattr(args, 'experiment_name', None)
+    mlflow_run = None
+    if experiment_name:
+        mlflow_run = start_run(experiment_name)
+        # Log hyperparameters
+        params = {
+            "num_epochs": args.num_epochs,
+            "batch_size": args.batch_size,
+            "start_lr": args.start_lr,
+            "lr_scheduler": args.lr_scheduler,
+            "use_amp": args.use_amp,
+            "task_type": args.task_type,
+        }
+        log_params(params)
+
     train_file_dict = args.train_files
     val_file_dict = args.val_files or train_file_dict
     train_range = (0, args.train_val_split)
     val_range = (args.train_val_split, 1)
-    train_data = SimpleIterDataset(train_file_dict, args.data_config, for_training=True, extra_selection=args.extra_selection, remake_weights=not args.no_remake_weights, load_range_and_fraction=(train_range, args.data_fraction), file_fraction=args.file_fraction, fetch_by_files=args.fetch_by_files, fetch_step=args.fetch_step, infinity_mode=args.steps_per_epoch is not None, in_memory=args.in_memory, name='train')
-    val_data = SimpleIterDataset(val_file_dict, args.data_config, for_training=True, extra_selection=args.extra_selection, load_range_and_fraction=(val_range, args.data_fraction), file_fraction=args.file_fraction, fetch_by_files=args.fetch_by_files, fetch_step=args.fetch_step, infinity_mode=args.steps_per_epoch_val is not None, in_memory=args.in_memory, name='val')
-    train_loader = DataLoader(train_data, batch_size=args.batch_size, drop_last=True, pin_memory=True, num_workers=min(args.num_workers, int(len(sum(train_file_dict.values(), [])) * args.file_fraction)))
-    val_loader = DataLoader(val_data, batch_size=args.batch_size, drop_last=True, pin_memory=True, num_workers=min(args.num_workers, int(len(sum(val_file_dict.values(), [])) * args.file_fraction)))
+    train_data = SimpleIterDataset(
+        train_file_dict, args.data_config, for_training=True,
+        extra_selection=args.extra_selection, remake_weights=not args.no_remake_weights,
+        load_range_and_fraction=(train_range, args.data_fraction),
+        file_fraction=args.file_fraction, fetch_by_files=args.fetch_by_files,
+        fetch_step=args.fetch_step, infinity_mode=args.steps_per_epoch is not None,
+        in_memory=args.in_memory, name='train'
+    )
+    val_data = SimpleIterDataset(
+        val_file_dict, args.data_config, for_training=True,
+        extra_selection=args.extra_selection,
+        load_range_and_fraction=(val_range, args.data_fraction),
+        file_fraction=args.file_fraction, fetch_by_files=args.fetch_by_files,
+        fetch_step=args.fetch_step, infinity_mode=args.steps_per_epoch_val is not None,
+        in_memory=args.in_memory, name='val'
+    )
+    train_loader = DataLoader(
+        train_data, batch_size=args.batch_size, drop_last=True,
+        pin_memory=True, num_workers=min(args.num_workers, int(len(sum(train_file_dict.values(), [])) * args.file_fraction))
+    )
+    val_loader = DataLoader(
+        val_data, batch_size=args.batch_size, drop_last=True,
+        pin_memory=True, num_workers=min(args.num_workers, int(len(sum(val_file_dict.values(), [])) * args.file_fraction))
+    )
     data_config = train_data.config
     dev = torch.device('cpu')
     if args.gpus:
@@ -173,31 +231,63 @@ def run(args):
         scheduler = None
     writer = get_writer(args.tensorboard) if args.tensorboard else None
     scaler = torch.cuda.amp.GradScaler() if args.use_amp and (dev.type == 'cuda') else None
-    import datetime as _dt
-    import socket as _sk
+
+    # Setup checkpoint directory
     if args.model_prefix:
         base_dir = os.path.dirname(args.model_prefix) if os.path.dirname(args.model_prefix) else 'checkpoints'
         base_name = os.path.basename(args.model_prefix)
         exp_name = os.path.basename(args.tensorboard) if args.tensorboard else 'default'
-        run_stamp = _dt.datetime.now().strftime('%b%d_%H-%M-%S') + '_' + _sk.gethostname() + 'runs'
+        run_stamp = datetime.datetime.now().strftime('%b%d_%H-%M-%S') + '_' + socket.gethostname() + 'runs'
         ckpt_dir = os.path.join(base_dir, run_stamp, exp_name)
         model_prefix_effective = os.path.join(ckpt_dir, base_name)
     else:
         model_prefix_effective = None
+
     best_valid = float('inf')
     for epoch in range(args.num_epochs):
-        train_loop(model, loss_func, opt, train_loader, dev, steps_per_epoch=args.steps_per_epoch, amp=args.use_amp, scaler=scaler, task_type=args.task_type)
-        valid = evaluate_loop(model, loss_func, val_loader, dev, steps_per_epoch=args.steps_per_epoch_val, task_type=args.task_type)
+        train_loop(
+            model, loss_func, opt, train_loader, dev,
+            steps_per_epoch=args.steps_per_epoch, amp=args.use_amp,
+            scaler=scaler, task_type=args.task_type
+        )
+        valid = evaluate_loop(
+            model, loss_func, val_loader, dev,
+            steps_per_epoch=args.steps_per_epoch_val, task_type=args.task_type
+        )
         logger.info(f'Epoch {epoch} valid {valid}')
+
+        # Log to TensorBoard
         log_scalar(writer, 'valid/loss', valid, epoch)
+
+        # Log to MLflow
+        if mlflow_run:
+            log_metrics({"val_loss": valid, "epoch": epoch}, step=epoch)
+
         if scheduler is not None:
             scheduler.step()
+
+        # Save checkpoint
         if model_prefix_effective:
             state_dict = model.state_dict()
             os.makedirs(os.path.dirname(model_prefix_effective), exist_ok=True)
-            torch.save(state_dict, model_prefix_effective + f'_epoch-{epoch}_state.pt')
+            checkpoint_path = model_prefix_effective + f'_epoch-{epoch}_state.pt'
+            torch.save(state_dict, checkpoint_path)
+
+            # Log checkpoint to MLflow
+            if mlflow_run:
+                log_artifact(checkpoint_path)
+
         if valid < best_valid:
             best_valid = valid
             if model_prefix_effective:
                 import shutil
-                shutil.copy2(model_prefix_effective + f'_epoch-{epoch}_state.pt', model_prefix_effective + '_best_epoch_state.pt')
+                best_checkpoint = model_prefix_effective + '_best_epoch_state.pt'
+                shutil.copy2(checkpoint_path, best_checkpoint)
+
+                # Log best checkpoint to MLflow
+                if mlflow_run:
+                    log_artifact(best_checkpoint)
+
+    # End MLflow run
+    if mlflow_run:
+        end_run()

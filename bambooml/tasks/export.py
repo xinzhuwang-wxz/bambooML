@@ -2,6 +2,10 @@ import os
 import torch
 from ..data.config import DataConfig
 
+'''
+export 是一个模块，用于将模型导出为 ONNX 格式。
+'''
+
 def run(args):
     assert args.export_onnx.endswith('.onnx')
     model_path = args.model_prefix

@@ -15,6 +15,36 @@ def _read_hdf5(filepath, branches, load_range=None):
     return outputs
 
 def _read_root(filepath, branches, load_range=None, treename=None, branch_magic=None):
+    
+    '''
+    _read_root 用于从 ROOT 文件中一次性加载多个 branch，返回一个
+    {branch_name: numpy.ndarray} 的字典。常用示例：
+
+    1）标量 double branch：
+        >>> arrs = _read_root('file.root', ['jet_pt', 'jet_eta'])
+        >>> arrs['jet_pt']   # dtype=float64，形状为 (n_entries,)
+        array([42.1, 38.5, ...])
+
+    2）矢量类型（std::vector<double>）：
+        ROOT 中的 vector<double> 会被 uproot 解出为 object dtype 的一维数组，
+        每个元素本身是一个 numpy.ndarray。例如：
+        >>> arrs = _read_root('file.root', ['jet_constituent_pt'])
+        >>> arrs['jet_constituent_pt'][0]  # 第 0 个事件的全部 constituent pt
+        array([1.2, 0.8, 0.5])
+
+       如需将变长 vector 展平成固定长度，可在上层逻辑中自行 pad/truncate。
+
+    3）branch_magic 的用途：
+        若 ROOT 文件中的真实 branch 名与代码中想要的别名不一致，可以传入
+        branch_magic 做字符串替换。例如：
+        >>> branch_magic = {'jet': 'Jet.', 'pt': 'PT'}
+        >>> _read_root('file.root', ['jet_pt'], branch_magic=branch_magic)
+        上述调用会把 'jet_pt' 转换为 'Jet.PT' 去读取，但最终字典的 key 仍是 'jet_pt'。
+
+    load_range=(start_frac, end_frac) 用于按比例读取部分 entries，treename 可显式指定 TTree。
+    读取失败会抛出 RuntimeError。
+    '''
+
     import uproot
     with uproot.open(filepath) as f:
         if treename is None:

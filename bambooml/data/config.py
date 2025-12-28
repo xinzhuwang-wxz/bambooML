@@ -3,6 +3,15 @@ import yaml
 import copy
 
 def _as_list(x):
+    """将输入转换为列表形式
+
+    Args:
+        x: 输入值
+
+    Returns:
+        list: 转换后的列表
+    """
+
     if x is None:
         return None
     elif isinstance(x, (list, tuple)):
@@ -11,26 +20,41 @@ def _as_list(x):
         return [x]
 
 def _md5(fname):
+    """计算文件的 MD5 哈希值，用于验证文件的完整性，防止文件被篡改。
+
+    Args:
+        fname (str): 文件路径
+
+    Returns:
+        str: 文件的 MD5 哈希值
+    """
     import hashlib
-    hash_md5 = hashlib.md5()
-    with open(fname, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+    hash_md5 = hashlib.md5()  # 创建md5计算器对象
+    with open(fname, 'rb') as f:  # 二进制打开文件
+        for chunk in iter(lambda: f.read(4096), b""):  # 读取文件，每次读取4096字节，直到文件结束
+            hash_md5.update(chunk)  # 增量
+    return hash_md5.hexdigest()  # 返回文件的MD5哈希值
 
 from .tools import _get_variable_names
 
 class DataConfig(object):
+    """数据配置类,用于存储数据配置的各个选项。
+
+    Args:
+        print_info (bool, optional): 是否打印配置信息. Defaults to True.
+        **kwargs: 其他配置参数
+    """
     def __init__(self, print_info=True, **kwargs):
+
         opts = {
             'treename': None,
-            'branch_magic': None,
-            'file_magic': None,
-            'selection': None,
-            'test_time_selection': None,
+            'branch_magic': None, 
+            'file_magic': None,  
+            'selection': None, 
+            'test_time_selection': None,  
             'preprocess': {'method': 'manual', 'data_fraction': 0.1, 'params': None},
             'new_variables': {},
-            'inputs': {},
+            'inputs': {},  # eg: {'features': {'length': None, 'vars': [['x', 'auto', 1, -5, 5, 0], ['y', 'auto', 1, -5, 5, 0]]}}
             'labels': {},
             'observers': [],
             'monitor_variables': [],
@@ -39,12 +63,12 @@ class DataConfig(object):
         for k, v in kwargs.items():
             if v is not None:
                 if isinstance(opts[k], dict):
-                    opts[k].update(v)
+                    opts[k].update(v)  # eg: opts['preprocess'].update({'method': 'auto', 'data_fraction': 0.1, 'params': None})
                 else:
                     opts[k] = v
         self.options = opts
         self.train_load_branches = set()
-        self.train_aux_branches = set()
+        self.train_aux_branches = set() 
         self.test_load_branches = set()
         self.test_aux_branches = set()
         self.selection = opts['selection']

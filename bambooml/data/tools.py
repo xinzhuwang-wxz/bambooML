@@ -41,6 +41,11 @@ def _get_variable_names(expr, exclude=None):
     return sorted({node.id for node in ast.walk(root) if isinstance(node, ast.Name) and not node.id.startswith('_')} - set(exclude))
 
 def _eval_expr(expr, table):
+
+    '''
+    _eval_expr 是一个函数，用于计算表达式的值。
+    eg: a = _eval_expr('a + b', {'a': 1, 'b': 2}) -> 3
+    '''
     tmp = {k: table[k] for k in _get_variable_names(expr)}
     tmp.update({'math': math, 'np': np, 'numpy': np, 'len': len})
     return eval(expr, tmp)

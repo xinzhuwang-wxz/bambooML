@@ -188,6 +188,10 @@ class _SimpleIter(object):
         return X, y, Z
 
 class SimpleIterDataset(torch.utils.data.IterableDataset):
+    '''
+    SimpleIterDataset 是一个类，用于创建一个简单的迭代器数据集。
+
+    '''
     def __init__(self, file_dict, data_config_file, for_training=True, load_range_and_fraction=None, extra_selection=None, fetch_by_files=False, fetch_step=0.01, file_fraction=1, remake_weights=False, up_sample=True, weight_scale=1, max_resample=10, async_load=True, infinity_mode=False, in_memory=False, name=''):
         self._iters = {} if infinity_mode or in_memory else None
         _init_args = set(self.__dict__.keys())

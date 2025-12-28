@@ -10,6 +10,8 @@ dependencies = [
   "pyarrow>=12",
   "pandas>=2.0,<3.0",
   "PyYAML>=6,<7",
+  "typer>=0.9.0",
+  "scikit-learn>=1.2.0",
 ]
 
 [project.scripts]
@@ -29,9 +31,53 @@ hep = [
 ]
 monitor = [
   "tensorboard>=2.13,<3",
+  "mlflow>=2.3.0",
 ]
 llm = [
   "transformers>=4.38,<5",
   "peft>=0.10,<0.11",
   "accelerate>=0.23,<0.26",
 ]
+dev = [
+  "black>=24.0.0",
+  "isort>=5.12.0",
+  "flake8>=6.0.0",
+  "pytest>=7.3.0",
+  "pytest-cov>=4.0.0",
+  "pre-commit>=3.2.0",
+]
+
+# Black formatting
+[tool.black]
+line-length = 100
+include = '\.pyi?$'
+exclude = '''
+/(
+      .eggs
+    | .git
+    | .hg
+    | .mypy_cache
+    | .tox
+    | venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+'''
+
+# iSort
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+
+# Pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+# Pytest cov
+[tool.coverage.run]
+omit = ["tests/*", "examples/*"]

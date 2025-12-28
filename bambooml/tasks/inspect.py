@@ -3,6 +3,9 @@ from ..data.config import DataConfig
 from ..data.fileio import _read_files
 from ..data.preprocess import _apply_selection, _build_new_variables
 
+'''
+inspect 是一个模块，用于检查数据集。比如检查数据集的分布、数据集的形状、数据集的类型等。
+'''
 def run(args):
     dc = DataConfig.load(args.data_config)
     file_dict = args.files
